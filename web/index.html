@@ -25,6 +25,7 @@
         <dt>带头位置</dt><dd id="head">0</dd>
         <dt>对中</dt><dd id="aligned">未确认</dd>
         <dt>焊缝跟踪点</dt><dd id="track">0</dd>
+        <dt>最近焊缝</dt><dd id="seamGrade">-</dd>
         <dt>张力设定</dt><dd id="tension">0</dd>
         <dt>实际张力</dt><dd id="effective">0</dd>
         <dt>槽体液位</dt><dd id="level">0</dd>
@@ -185,6 +186,31 @@
     <div class="panel">
       <h2>最近事件</h2>
       <ol id="auditList" class="audit"></ol>
+    </div>
+    <div class="panel">
+      <h2>焊缝台账</h2>
+      <form class="inline" data-form="seam-query">
+        <label>卷号筛选<input name="coil" type="text" placeholder="留空查全部"></label>
+        <label>条数<input name="limit" type="number" step="1" value="50"></label>
+        <button type="submit">查询焊缝</button>
+      </form>
+      <table class="seams">
+        <thead>
+          <tr>
+            <th>时间</th><th>焊缝编号</th><th>卷号</th><th>位置</th>
+            <th>电压</th><th>电流</th><th>焊速</th><th>线能量</th>
+            <th>等级</th><th>返修</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="seamList">
+          <tr><td colspan="11" class="muted">尚未查询</td></tr>
+        </tbody>
+      </table>
+      <form class="inline" data-form="seam-repair">
+        <label>焊缝编号<input name="seam" type="text" required></label>
+        <label>返修说明<input name="note" type="text" placeholder="如：断带后重焊搭接" required></label>
+        <button type="submit">登记返修</button>
+      </form>
     </div>
     <div class="panel">
       <h2>流程步骤</h2>

@@ -95,6 +95,8 @@ class ViewOps:
             "weldKnown": has_weld,
             "lastWeldPos": last_weld.position,
             "heatInput": last_weld.heat_input,
+            "weldCoil": last_weld.coil_id,
+            "weldGrade": last_weld.grade,
             "backupCount": len(backups),
             "lastBackup": self.last_backup.to_dict() if self.last_backup else None,
             "dataDir": self.store.directory,

@@ -10,6 +10,7 @@ from ..domain.records import WeldRecord, utcnow
 from ..store.keys import KEY_WELD, SEAM_PREFIX
 from ..store.snapshot import save_json
 from .errors import WeldError, WeldErrorCode
+from .quality import grade_seam
 from .state import WeldState
 
 
@@ -19,16 +20,27 @@ class SpliceOps:
     def splice(self) -> WeldRecord:
         if self.state() != WeldState.WELDING:
             raise WeldError(WeldErrorCode.ARC_BLOCKED, "no arc running")
+        voltage, current = self.power_state()
+        speed = self.data.line_speed
+        grade, reason, heat_input = grade_seam(voltage, current, speed, self.data.spec)
         record = WeldRecord(
             seam_id=uuid4().hex,
             position=self.data.track,
             tension=self.data.tension,
-            heat_input=self.heat_input(),
+            heat_input=heat_input,
+            voltage=voltage,
+            current=current,
+            weld_speed=speed,
+            coil_id=self.current_coil(),
+            grade=grade,
+            grade_reason=reason,
             at=utcnow(),
         )
         save_json(self.store, KEY_WELD, record)
         save_json(self.store, SEAM_PREFIX + record.seam_id, record)
         self.data.seam_id = record.seam_id
+        self.data.last_grade = grade
+        self.data.last_grade_reason = reason
         self.machine.enter(WeldState.SPLICED)
         self.bus.publish(
             Event(

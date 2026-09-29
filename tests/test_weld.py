@@ -8,6 +8,16 @@ from linecontrol.bus import EventBus
 from linecontrol.domain.records import Confirm, LatchSnapshot, utcnow
 from linecontrol.store.filestore import FileStore
 from linecontrol.weld.errors import WeldError, WeldErrorCode
+from linecontrol.weld.quality import (
+    GRADE_A,
+    GRADE_B,
+    GRADE_C,
+    REASON_COLD,
+    REASON_HOT,
+    REASON_SPEED_MISSING,
+    WeldSpec,
+    grade_seam,
+)
 from linecontrol.weld.state import WeldState
 from linecontrol.weld.welder import Welder
 
@@ -22,9 +32,9 @@ class Aligner:
         return self.confirm
 
 
-def build(tmp_path) -> tuple[Welder, Aligner]:
+def build(tmp_path, coil_id: str = "") -> tuple[Welder, Aligner]:
     aligner = Aligner()
-    welder = Welder(aligner, FileStore(tmp_path), EventBus())
+    welder = Welder(aligner, FileStore(tmp_path), EventBus(), lambda: coil_id)
     return welder, aligner
 
 
@@ -136,3 +146,87 @@ def test_snapshot_exposes_the_transition_history(tmp_path) -> None:
     view = welder.snapshot()
     assert view["state"] == WeldState.WELDING
     assert view["transitions"] == [WeldState.IDLE, WeldState.GATED, WeldState.WELDING]
+
+
+def weld_one(welder: Welder, aligner: Aligner, position: float = 10.0) -> object:
+    aligner.confirm = Confirm(ok=True, position=position, at=utcnow())
+    welder.gate_arc()
+    welder.arc()
+    return welder.splice()
+
+
+def test_splice_grades_the_seam_and_keeps_the_parameters(tmp_path) -> None:
+    welder, aligner = build(tmp_path, "C-2026-09")
+    welder.set_line_speed(1.5)
+    welder.set_power(24.0, 300.0)
+    record = weld_one(welder, aligner)
+    assert record.grade == GRADE_A
+    assert record.coil_id == "C-2026-09"
+    assert record.voltage == pytest.approx(24.0)
+    assert record.current == pytest.approx(300.0)
+    assert record.weld_speed == pytest.approx(1.5)
+    assert welder.snapshot()["lastGrade"] == GRADE_A
+
+
+def test_splice_without_speed_is_graded_c(tmp_path) -> None:
+    welder, aligner = build(tmp_path)
+    welder.set_power(24.0, 300.0)
+    record = weld_one(welder, aligner)
+    assert record.grade == GRADE_C
+    assert record.grade_reason == REASON_SPEED_MISSING
+
+
+def test_grade_seam_bands() -> None:
+    grade, _, heat = grade_seam(24.0, 300.0, 1.5)
+    assert grade == GRADE_A and heat == pytest.approx(4800.0)
+    grade, reason, _ = grade_seam(24.0, 300.0, 1.28)
+    assert grade == GRADE_B and reason == REASON_HOT
+    grade, reason, _ = grade_seam(24.0, 300.0, 1.84)
+    assert grade == GRADE_B and reason == REASON_COLD
+    grade, reason, _ = grade_seam(24.0, 300.0, 1.0)
+    assert grade == GRADE_C and reason == REASON_HOT
+
+
+def test_grade_seam_honours_a_custom_spec() -> None:
+    spec = WeldSpec(target_heat=6000.0, tight=0.05, loose=0.15)
+    grade, _, heat = grade_seam(30.0, 300.0, 1.5, spec)
+    assert grade == GRADE_A and heat == pytest.approx(6000.0)
+
+
+def test_seam_history_filters_by_coil(tmp_path) -> None:
+    welder, aligner = build(tmp_path, "C-1")
+    welder.set_line_speed(1.5)
+    welder.set_power(24.0, 300.0)
+    first = weld_one(welder, aligner, 10.0)
+    welder, aligner = build(tmp_path, "C-2")
+    welder.set_line_speed(1.5)
+    welder.set_power(24.0, 300.0)
+    second = weld_one(welder, aligner, 20.0)
+    c1 = welder.seam_history(coil_id="C-1")
+    assert [item.seam_id for item in c1] == [first.seam_id]
+    assert {item.seam_id for item in welder.seam_history()} == {
+        first.seam_id,
+        second.seam_id,
+    }
+
+
+def test_register_repair_appends_without_touching_the_grade(tmp_path) -> None:
+    welder, aligner = build(tmp_path, "C-1")
+    welder.set_line_speed(1.5)
+    welder.set_power(24.0, 300.0)
+    seam = weld_one(welder, aligner)
+    updated = welder.register_repair(seam.seam_id, "断带后重焊搭接")
+    assert updated.grade == seam.grade
+    assert len(updated.repairs) == 1
+    assert updated.repairs[0].note == "断带后重焊搭接"
+    again = welder.register_repair(seam.seam_id, "二次打磨补焊")
+    assert len(again.repairs) == 2
+    stored = welder.get_seam(seam.seam_id)
+    assert len(stored.repairs) == 2
+
+
+def test_register_repair_requires_a_known_seam(tmp_path) -> None:
+    welder, _ = build(tmp_path)
+    with pytest.raises(WeldError) as caught:
+        welder.register_repair("nope", "note")
+    assert caught.value.code is WeldErrorCode.SEAM_MISSING

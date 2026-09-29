@@ -10,6 +10,7 @@ from linecontrol.domain.records import (
     AcidSnapshot,
     LatchSnapshot,
     PumpSnapshot,
+    RepairRecord,
     RinseSnapshot,
     TensionSnapshot,
     TrackSnapshot,
@@ -46,6 +47,41 @@ def test_save_and_load_round_trip(tmp_path) -> None:
     assert restored == record
     assert store.exists(KEY_WELD) is True
     assert store.list("weld.") == [KEY_WELD]
+
+
+def test_graded_seam_with_repairs_round_trips(tmp_path) -> None:
+    store = FileStore(tmp_path)
+    record = WeldRecord(
+        seam_id="s2",
+        position=50.0,
+        heat_input=4800.0,
+        voltage=24.0,
+        current=300.0,
+        weld_speed=1.5,
+        coil_id="C-9",
+        grade="A",
+        grade_reason="in-band",
+        repairs=(RepairRecord(note="重焊"),),
+    )
+    save_json(store, KEY_WELD, record)
+    restored, ok = load_json(store, KEY_WELD, WeldRecord)
+    assert ok is True
+    assert restored == record
+    assert restored.repairs[0].note == "重焊"
+
+
+def test_legacy_weld_record_without_new_fields_loads(tmp_path) -> None:
+    store = FileStore(tmp_path)
+    store.save(
+        KEY_WELD,
+        b'{"seam_id": "old", "position": 1.0, "tension": 2.0, '
+        b'"heat_input": 3.0, "at": "2026-01-01T00:00:00+00:00"}',
+    )
+    restored, ok = load_json(store, KEY_WELD, WeldRecord)
+    assert ok is True
+    assert restored.seam_id == "old"
+    assert restored.grade == ""
+    assert restored.repairs == ()
 
 
 def test_load_json_missing_and_corrupt(tmp_path) -> None:

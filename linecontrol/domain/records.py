@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Any
 
@@ -38,6 +38,21 @@ class Confirm:
 
 
 @dataclass(frozen=True, slots=True)
+class RepairRecord:
+    """A post-hoc repair registered against an existing seam."""
+
+    note: str = ""
+    at: datetime = field(default_factory=utcnow)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"note": self.note, "at": self.at.isoformat()}
+
+    @classmethod
+    def from_dict(cls, raw: dict[str, Any]) -> "RepairRecord":
+        return cls(note=str(raw.get("note", "")), at=_stamp(raw.get("at")))
+
+
+@dataclass(frozen=True, slots=True)
 class WeldRecord:
     """A completed weld seam."""
 
@@ -45,6 +60,13 @@ class WeldRecord:
     position: float = 0.0
     tension: float = 0.0
     heat_input: float = 0.0
+    voltage: float = 0.0
+    current: float = 0.0
+    weld_speed: float = 0.0
+    coil_id: str = ""
+    grade: str = ""
+    grade_reason: str = ""
+    repairs: tuple[RepairRecord, ...] = ()
     at: datetime = field(default_factory=utcnow)
 
     def to_dict(self) -> dict[str, Any]:
@@ -53,18 +75,45 @@ class WeldRecord:
             "position": self.position,
             "tension": self.tension,
             "heat_input": self.heat_input,
+            "voltage": self.voltage,
+            "current": self.current,
+            "weld_speed": self.weld_speed,
+            "coil_id": self.coil_id,
+            "grade": self.grade,
+            "grade_reason": self.grade_reason,
+            "repairs": [repair.to_dict() for repair in self.repairs],
             "at": self.at.isoformat(),
         }
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "WeldRecord":
+        raw_repairs = raw.get("repairs", ())
+        repairs: tuple[RepairRecord, ...] = ()
+        if isinstance(raw_repairs, list):
+            repairs = tuple(
+                RepairRecord.from_dict(item)
+                for item in raw_repairs
+                if isinstance(item, dict)
+            )
         return cls(
             seam_id=str(raw.get("seam_id", "")),
             position=float(raw.get("position", 0.0)),
             tension=float(raw.get("tension", 0.0)),
             heat_input=float(raw.get("heat_input", 0.0)),
+            voltage=float(raw.get("voltage", 0.0)),
+            current=float(raw.get("current", 0.0)),
+            weld_speed=float(raw.get("weld_speed", 0.0)),
+            coil_id=str(raw.get("coil_id", "")),
+            grade=str(raw.get("grade", "")),
+            grade_reason=str(raw.get("grade_reason", "")),
+            repairs=repairs,
             at=_stamp(raw.get("at")),
         )
+
+    def with_repair(self, repair: RepairRecord) -> "WeldRecord":
+        """Return a copy of the record with one more repair entry."""
+
+        return replace(self, repairs=(*self.repairs, repair))
 
 
 @dataclass(frozen=True, slots=True)

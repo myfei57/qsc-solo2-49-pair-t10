@@ -49,6 +49,13 @@ def int_param(request: Request, name: str, default: int) -> int:
         raise ApiParamError(name, raw) from error
 
 
+def str_param(request: Request, name: str) -> str:
+    raw = request.args.get(name, "").strip()
+    if not raw:
+        raise ApiParamError(name, raw)
+    return raw
+
+
 class Api:
     """Holds the line plus the event stream shown on the overview page."""
 
@@ -153,7 +160,8 @@ class Api:
 
     def weld_seams(self, request: Request) -> dict[str, object]:
         limit = int_param(request, "limit", DEFAULT_SEAM_LIMIT)
-        seams = self.line.weld_seams(limit)
+        coil_id = request.args.get("coil", "").strip()
+        seams = self.line.weld_seams(limit, coil_id)
         return {"ok": True, "seams": [seam.to_dict() for seam in seams]}
 
     def tension_persisted(self, request: Request) -> dict[str, object]:
@@ -194,6 +202,13 @@ class Api:
     def weld_release(self, request: Request) -> dict[str, object]:
         self.line.splice_release()
         return {"ok": True}
+
+    def weld_repair(self, request: Request) -> dict[str, object]:
+        seam = self.line.register_seam_repair(
+            str_param(request, "seam"),
+            str_param(request, "note"),
+        )
+        return {"ok": True, "seam": seam.to_dict()}
 
     def tension_calibrate(self, request: Request) -> dict[str, object]:
         changed = self.line.recalibrate_tension(float_param(request, "gain"))

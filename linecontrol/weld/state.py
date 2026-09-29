@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 from ..domain.machine import StateMachine
 from ..domain.records import Confirm
+from .quality import WeldSpec
 
 
 class WeldState:
@@ -45,3 +46,6 @@ class WeldStateData:
     voltage: float = 0.0
     current: float = 0.0
     line_speed: float = 0.0
+    spec: WeldSpec = field(default_factory=WeldSpec)
+    last_grade: str = ""
+    last_grade_reason: str = ""

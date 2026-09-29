@@ -15,6 +15,7 @@ from .persist import PersistOps
 from .power import PowerOps
 from .seams import SeamsOps
 from .splice import SpliceOps
+from .quality import WeldSpec
 from .state import WeldStateData, new_weld_machine
 
 
@@ -31,8 +32,10 @@ class Welder(GateOps, ArcOps, SpliceOps, LatchOps, PowerOps, PersistOps, SeamsOp
         align: Callable[[], Confirm],
         store: FileStore,
         bus: EventBus,
+        coil: Callable[[], str] | None = None,
     ) -> None:
         self._align = align
+        self._coil = coil or (lambda: "")
         self._store = store
         self._bus = bus
         self._state = WeldStateData()
@@ -57,6 +60,15 @@ class Welder(GateOps, ArcOps, SpliceOps, LatchOps, PowerOps, PersistOps, SeamsOp
     def state(self) -> str:
         return self._machine.state
 
+    def current_coil(self) -> str:
+        return self._coil()
+
+    def weld_spec(self) -> WeldSpec:
+        return self.data.spec
+
+    def set_weld_spec(self, spec: WeldSpec) -> None:
+        self.data.spec = spec
+
     def snapshot(self) -> dict[str, object]:
         voltage, current = self.power_state()
         return {
@@ -67,6 +79,8 @@ class Welder(GateOps, ArcOps, SpliceOps, LatchOps, PowerOps, PersistOps, SeamsOp
             "interlock": self.interlock_ok(),
             "tension": self.tension(),
             "heatInput": self.heat_input(),
+            "lastGrade": self.data.last_grade,
+            "lastGradeReason": self.data.last_grade_reason,
             "voltage": voltage,
             "current": current,
             "transitions": list(self._machine.history()),

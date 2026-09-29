@@ -10,6 +10,7 @@ class WeldErrorCode(str, Enum):
     ARC_BLOCKED = "arc-blocked"
     LATCH_HELD = "latch-held"
     POWER_INVALID = "power-invalid"
+    SEAM_MISSING = "seam-missing"
 
 
 class WeldError(RuntimeError):

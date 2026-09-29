@@ -111,8 +111,11 @@ class CommandOps:
     def persisted_tension(self) -> tuple[TensionSnapshot, bool]:
         return self.tension.persisted_tension()
 
-    def weld_seams(self, limit: int = 0) -> list[WeldRecord]:
-        return self.weld.seam_history(limit)
+    def weld_seams(self, limit: int = 0, coil_id: str = "") -> list[WeldRecord]:
+        return self.weld.seam_history(limit, coil_id)
+
+    def register_seam_repair(self, seam_id: str, note: str) -> WeldRecord:
+        return self.weld.register_repair(seam_id, note)
 
     def audit_query(self, kind: EventKind | None, limit: int = 0) -> list[Event]:
         if kind is None:

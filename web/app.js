@@ -60,6 +60,13 @@ function renderState(state) {
   setText("speed", fmt(state.strip ? state.strip.speed : 0, 2));
   setText("travel", fmt(state.strip ? state.strip.travel : 0, 1));
 
+  const weld = state.weld || {};
+  const gradeText = weld.seam
+    ? shortSeam(weld.seam) + " / " + (weld.lastGrade || "-") +
+      "（" + (GRADE_REASONS[weld.lastGradeReason] || "无判定") + "）"
+    : "无焊缝";
+  setText("seamGrade", gradeText);
+
   const lamps = document.getElementById("lamps");
   lamps.innerHTML = "";
   LAMP_SOURCES.forEach(function (entry) {
@@ -125,6 +132,74 @@ function renderSequence(sequence) {
   });
 }
 
+const GRADE_REASONS = {
+  "in-band": "线能量在工艺窗口内",
+  "heat-high": "线能量偏高",
+  "heat-low": "线能量偏低",
+  "speed-missing": "缺少有效焊速",
+  "power-missing": "缺少焊接功率",
+};
+
+function shortSeam(id) {
+  return id ? id.slice(0, 8) : "-";
+}
+
+function fmtTime(iso) {
+  return iso ? new Date(iso).toLocaleString() : "-";
+}
+
+let seamFilter = {};
+
+function renderSeams(seams) {
+  const body = document.getElementById("seamList");
+  body.innerHTML = "";
+  if (!seams.length) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = '<td colspan="11" class="muted">没有焊缝记录</td>';
+    body.appendChild(tr);
+    return;
+  }
+  seams.forEach(function (seam) {
+    const tr = document.createElement("tr");
+    const repairs = seam.repairs || [];
+    const repairText = repairs.length
+      ? repairs.map(function (r) {
+          return fmtTime(r.at) + " " + (r.note || "");
+        }).join("；")
+      : "无";
+    tr.innerHTML =
+      "<td>" + fmtTime(seam.at) + "</td>" +
+      "<td title=\"" + seam.seam_id + "\">" + shortSeam(seam.seam_id) + "</td>" +
+      "<td>" + (seam.coil_id || "-") + "</td>" +
+      "<td>" + fmt(seam.position, 1) + "</td>" +
+      "<td>" + fmt(seam.voltage, 1) + "</td>" +
+      "<td>" + fmt(seam.current, 0) + "</td>" +
+      "<td>" + fmt(seam.weld_speed, 2) + "</td>" +
+      "<td>" + fmt(seam.heat_input, 0) + "</td>" +
+      "<td><span class=\"grade grade-" + (seam.grade || "-").toLowerCase() + "\">" +
+        (seam.grade || "-") +
+        "<br><small>" + (GRADE_REASONS[seam.grade_reason] || "") + "</small></span></td>" +
+      "<td>" + repairText + "</td>" +
+      "<td></td>";
+    const button = document.createElement("button");
+    button.textContent = "登记返修";
+    button.addEventListener("click", function () {
+      const form = document.querySelector('form[data-form="seam-repair"]');
+      form.seam.value = seam.seam_id;
+      form.note.focus();
+    });
+    tr.lastElementChild.appendChild(button);
+    body.appendChild(tr);
+  });
+}
+
+async function querySeams(params) {
+  seamFilter = params || {};
+  const query = new URLSearchParams(seamFilter).toString();
+  const data = await loadJSON("/api/weld/seams" + (query ? "?" + query : ""));
+  renderSeams(data.seams || []);
+}
+
 async function refresh() {
   try {
     const data = await loadJSON("/api/state");
@@ -183,6 +258,21 @@ const FORM_CALLS = {
   "exit-weight": (form) => post("/api/exit/weight", readForm(form)),
   "cycle": (form) => post("/api/cycle", readForm(form)),
   "audit-query": (form) => refreshAudit(form.kind.value, form.limit.value),
+  "seam-query": (form) => {
+    const params = {};
+    if (form.coil.value.trim()) {
+      params.coil = form.coil.value.trim();
+    }
+    if (form.limit.value) {
+      params.limit = form.limit.value;
+    }
+    return querySeams(params);
+  },
+  "seam-repair": async (form) => {
+    await post("/api/weld/repair", readForm(form));
+    form.note.value = "";
+    await querySeams(seamFilter);
+  },
 };
 
 function readForm(form) {
@@ -237,4 +327,5 @@ document.querySelectorAll("button.tab").forEach(function (button) {
 });
 
 refresh();
+querySeams({ limit: 50 }).catch(console.error);
 setInterval(refresh, 3000);

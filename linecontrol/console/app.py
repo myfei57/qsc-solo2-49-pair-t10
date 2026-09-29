@@ -41,6 +41,7 @@ def _route_table(api: Api) -> tuple[tuple[str, str, Handler], ...]:
         ("/api/weld/alarm", "POST", api.weld_alarm),
         ("/api/weld/clear", "POST", api.weld_clear),
         ("/api/weld/release", "POST", api.weld_release),
+        ("/api/weld/repair", "POST", api.weld_repair),
         ("/api/tension/calibrate", "POST", api.tension_calibrate),
         ("/api/tension/ramp", "POST", api.tension_ramp),
         ("/api/tension/persisted", "GET", api.tension_persisted),

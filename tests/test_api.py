@@ -142,3 +142,42 @@ def test_sequence_clear_endpoint(client: FlaskClient) -> None:
     client.post("/api/entry/sample?value=1")
     assert client.post("/api/sequence/clear").status_code == 200
     assert client.get("/api/sequence").get_json()["sequence"]["steps"] == []
+
+
+def _produce_seam(client: FlaskClient, coil: str) -> str:
+    client.post(
+        f"/api/cycle?coil={coil}&target=90&level=4.5&voltage=24&current=300&speed=1.5"
+    )
+    seams = client.get("/api/weld/seams").get_json()["seams"]
+    by_coil = [seam for seam in seams if seam["coil_id"] == coil]
+    return by_coil[0]["seam_id"]
+
+
+def test_weld_seams_report_grade_and_coil(client: FlaskClient) -> None:
+    _produce_seam(client, "C-A")
+    seams = client.get("/api/weld/seams?coil=C-A").get_json()["seams"]
+    assert seams and all(seam["coil_id"] == "C-A" for seam in seams)
+    seam = seams[0]
+    assert seam["grade"] in {"A", "B", "C"}
+    assert seam["voltage"] == 24.0
+    assert seam["current"] == 300.0
+    assert seam["weld_speed"] == 1.5
+    assert seam["repairs"] == []
+
+
+def test_weld_repair_appends_and_persists(client: FlaskClient) -> None:
+    seam_id = _produce_seam(client, "C-B")
+    response = client.post(f"/api/weld/repair?seam={seam_id}&note=断带返修")
+    assert response.status_code == 200
+    updated = response.get_json()["seam"]
+    assert len(updated["repairs"]) == 1
+    assert updated["repairs"][0]["note"] == "断带返修"
+    seams = client.get("/api/weld/seams?coil=C-B").get_json()["seams"]
+    assert len(seams[0]["repairs"]) == 1
+
+
+def test_weld_repair_validation(client: FlaskClient) -> None:
+    assert client.post("/api/weld/repair?seam=x").status_code == 400
+    response = client.post("/api/weld/repair?seam=missing&note=note")
+    assert response.status_code == 409
+    assert response.get_json()["detail"]["code"] == "seam-missing"

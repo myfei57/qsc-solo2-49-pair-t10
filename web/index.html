@@ -14,6 +14,7 @@
 <nav class="tabs">
   <button class="tab" data-tab="overview">总览</button>
   <button class="tab" data-tab="ops">操作</button>
+  <button class="tab" data-tab="seams">焊缝追溯</button>
   <button class="tab" data-tab="audit">记录查询</button>
 </nav>
 <main>
@@ -145,6 +146,62 @@
         <label>速度<input name="speed" type="number" step="0.1" value="1.5"></label>
         <button type="submit">整卷联动</button>
       </form>
+    </div>
+  </section>
+
+  <section id="tab-seams" class="tabpage hidden">
+    <div class="panel">
+      <h2>质量分级设置</h2>
+      <p class="hint">按焊接时的热输入（电压 × 电流 ÷ 速度）与目标热输入的偏差分级：±5% 为 A，±15% 为 B，超出为 C；未采到参数为未分级。</p>
+      <form class="inline" data-form="heat-target">
+        <label>目标热输入<input name="value" type="number" step="1" value="4800"></label>
+        <button type="submit">保存目标</button>
+      </form>
+    </div>
+    <div class="panel">
+      <h2>焊缝台账</h2>
+      <form class="inline" data-form="seam-query">
+        <label>按卷号过滤<input name="coil" type="text" placeholder="如 C-2026-01"></label>
+        <label>条数<input name="limit" type="number" step="1" value="50"></label>
+        <button type="submit">查询</button>
+        <button type="button" data-op="seam-reload">刷新</button>
+      </form>
+      <table class="seams">
+        <thead>
+          <tr>
+            <th>等级</th><th>卷号</th><th>位点</th><th>电压</th><th>电流</th>
+            <th>速度</th><th>热输入</th><th>偏差</th><th>来源</th><th>时间</th><th>返修</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="seamList"></tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <h2>登记返修 / 补录焊缝</h2>
+      <form class="inline" data-form="seam-repair">
+        <label>焊缝编号<input name="id" type="text" required></label>
+        <label>原因<input name="reason" type="text" placeholder="如 断带"></label>
+        <label>处理人<input name="operator" type="text"></label>
+        <label>备注<input name="note" type="text"></label>
+        <button type="submit">登记返修</button>
+      </form>
+      <form class="inline" data-form="seam-manual">
+        <label>卷号<input name="coil" type="text" required></label>
+        <label>位点<input name="pos" type="number" step="0.5" required></label>
+        <label>张力<input name="tension" type="number" step="0.1" value="80"></label>
+        <label>热输入<input name="heat" type="number" step="1" required></label>
+        <label>电压<input name="voltage" type="number" step="1"></label>
+        <label>电流<input name="current" type="number" step="1"></label>
+        <label>速度<input name="speed" type="number" step="0.1"></label>
+        <button type="submit">补录焊缝</button>
+      </form>
+      <h3>返修记录</h3>
+      <table class="seams">
+        <thead>
+          <tr><th>时间</th><th>卷号</th><th>焊缝</th><th>原因</th><th>处理人</th><th>备注</th></tr>
+        </thead>
+        <tbody id="repairList"></tbody>
+      </table>
     </div>
   </section>
 

@@ -41,7 +41,9 @@ class Line(WorkflowOps, CommandOps, RecoveryOps, ViewOps):
         self.pump = Pump(self.pickle, self.store, self.bus, self.strip.stopped)
         self.exit = Exit(self.pickle, self.strip, self.bus)
         self.dry = Dryer(self.exit.exhaust_ok, self.bus)
-        self.weld = Welder(self.entry.confirm_state, self.store, self.bus)
+        self.weld = Welder(
+            self.entry.confirm_state, self.store, self.bus, self.entry.coil_id
+        )
         self.entry.set_interlock_provider(self.weld.interlock_ok)
         self.tension.apply_setpoint(DEFAULT_SETPOINT)
         self.phase = Phase.IDLE

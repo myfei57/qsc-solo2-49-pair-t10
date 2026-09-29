@@ -217,3 +217,84 @@ main {
 .step-bad {
   color: #c0392b;
 }
+
+.hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: #627d98;
+}
+
+.seams {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.seams th,
+.seams td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #e1e8f0;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.seams th {
+  color: #486581;
+  font-weight: 600;
+  background: #f0f4f8;
+}
+
+.grade {
+  font-weight: 700;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.grade-A {
+  color: #1f6f43;
+  background: #e6ffed;
+}
+
+.grade-B {
+  color: #8a6d1a;
+  background: #fff7e0;
+}
+
+.grade-C {
+  color: #c0392b;
+  background: #fdecea;
+}
+
+.grade-U {
+  color: #627d98;
+  background: #f0f4f8;
+}
+
+.repair-count {
+  color: #c0392b;
+  font-weight: 700;
+}
+
+.repair-pending {
+  color: #9fb3c8;
+}
+
+.seams button {
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: #1565c0;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.seams button:hover {
+  background: #0d47a1;
+}
+
+.panel h3 {
+  margin: 14px 0 8px;
+  font-size: 14px;
+  color: #243b53;
+}

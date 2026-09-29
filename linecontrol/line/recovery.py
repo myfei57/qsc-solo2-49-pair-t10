@@ -25,6 +25,7 @@ class RecoveryOps:
             self.tension.recalibrate(state.gain)
         self.weld.restore_latch(state.latch)
         self.weld.restore_tension(state.tension)
+        self.weld.restore_heat_target(state.heat_target)
         self.tension.restore_tension(state.tension)
         self.pickle.restore_acid(state.acid)
         self.pickle.restore_rinse(state.rinse.active)

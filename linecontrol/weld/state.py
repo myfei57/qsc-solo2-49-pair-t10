@@ -45,3 +45,4 @@ class WeldStateData:
     voltage: float = 0.0
     current: float = 0.0
     line_speed: float = 0.0
+    heat_target: float = 0.0

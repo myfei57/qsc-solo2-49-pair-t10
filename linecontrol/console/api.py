@@ -49,6 +49,14 @@ def int_param(request: Request, name: str, default: int) -> int:
         raise ApiParamError(name, raw) from error
 
 
+def str_param(request: Request, name: str, default: str = "") -> str:
+    return request.args.get(name, default)
+
+
+def _has(request: Request, name: str) -> bool:
+    return request.args.get(name, "") != ""
+
+
 class Api:
     """Holds the line plus the event stream shown on the overview page."""
 
@@ -153,8 +161,57 @@ class Api:
 
     def weld_seams(self, request: Request) -> dict[str, object]:
         limit = int_param(request, "limit", DEFAULT_SEAM_LIMIT)
-        seams = self.line.weld_seams(limit)
+        coil_id = str_param(request, "coil")
+        seams = self.line.weld_seams(limit, coil_id)
         return {"ok": True, "seams": [seam.to_dict() for seam in seams]}
+
+    def weld_seam_detail(self, request: Request) -> dict[str, object]:
+        seam_id = str_param(request, "id")
+        seam = self.line.weld_seam(seam_id)
+        repairs = self.line.seam_repairs(seam_id)
+        return {
+            "ok": True,
+            "seam": seam.to_dict(),
+            "repairs": [repair.to_dict() for repair in repairs],
+        }
+
+    def weld_repairs(self, request: Request) -> dict[str, object]:
+        limit = int_param(request, "limit", DEFAULT_SEAM_LIMIT)
+        coil_id = str_param(request, "coil")
+        repairs = self.line.repair_history(limit, coil_id)
+        return {"ok": True, "repairs": [repair.to_dict() for repair in repairs]}
+
+    def weld_repair_register(self, request: Request) -> dict[str, object]:
+        seam_id = str_param(request, "id")
+        if not seam_id:
+            raise ApiParamError("id", seam_id)
+        repair = self.line.repair_seam(
+            seam_id,
+            reason=str_param(request, "reason"),
+            operator=str_param(request, "operator"),
+            note=str_param(request, "note"),
+            coil_id=str_param(request, "coil"),
+        )
+        return {"ok": True, "repair": repair.to_dict()}
+
+    def weld_heat_target(self, request: Request) -> dict[str, object]:
+        self.line.set_heat_target(float_param(request, "value"))
+        return {"ok": True, "target": self.line.weld.heat_target()}
+
+    def weld_manual_seam(self, request: Request) -> dict[str, object]:
+        coil_id = str_param(request, "coil")
+        if not coil_id:
+            raise ApiParamError("coil", coil_id)
+        seam = self.line.register_manual_seam(
+            position=float_param(request, "pos"),
+            tension=float_param(request, "tension"),
+            heat_input=float_param(request, "heat"),
+            coil_id=coil_id,
+            voltage=float_param(request, "voltage") if _has(request, "voltage") else 0.0,
+            current=float_param(request, "current") if _has(request, "current") else 0.0,
+            line_speed=float_param(request, "speed") if _has(request, "speed") else 0.0,
+        )
+        return {"ok": True, "seam": seam.to_dict()}
 
     def tension_persisted(self, request: Request) -> dict[str, object]:
         snapshot, ok = self.line.persisted_tension()

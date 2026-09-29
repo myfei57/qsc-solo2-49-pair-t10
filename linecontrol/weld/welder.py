@@ -23,7 +23,9 @@ class Welder(GateOps, ArcOps, SpliceOps, LatchOps, PowerOps, PersistOps, SeamsOp
 
     The alignment lookup is a callable rather than a stored copy so that a
     confirmation refreshed by the entry section is observed by the next gate
-    read on both the start-up and the post-splice arc path.
+    read on both the start-up and the post-splice arc path.  The coil lookup
+    works the same way: a seam is stamped with whichever coil is loaded at
+    splice time, without the welder owning the coil state.
     """
 
     def __init__(
@@ -31,10 +33,12 @@ class Welder(GateOps, ArcOps, SpliceOps, LatchOps, PowerOps, PersistOps, SeamsOp
         align: Callable[[], Confirm],
         store: FileStore,
         bus: EventBus,
+        coil: Callable[[], str] | None = None,
     ) -> None:
         self._align = align
         self._store = store
         self._bus = bus
+        self._coil: Callable[[], str] = coil or (lambda: "")
         self._state = WeldStateData()
         self._machine: StateMachine = new_weld_machine()
 
@@ -54,6 +58,9 @@ class Welder(GateOps, ArcOps, SpliceOps, LatchOps, PowerOps, PersistOps, SeamsOp
     def machine(self) -> StateMachine:
         return self._machine
 
+    def coil_lookup(self) -> str:
+        return self._coil()
+
     def state(self) -> str:
         return self._machine.state
 
@@ -67,6 +74,8 @@ class Welder(GateOps, ArcOps, SpliceOps, LatchOps, PowerOps, PersistOps, SeamsOp
             "interlock": self.interlock_ok(),
             "tension": self.tension(),
             "heatInput": self.heat_input(),
+            "heatTarget": self.heat_target(),
+            "coil": self.coil_lookup(),
             "voltage": voltage,
             "current": current,
             "transitions": list(self._machine.history()),

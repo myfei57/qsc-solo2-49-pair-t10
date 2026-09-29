@@ -125,6 +125,82 @@ function renderSequence(sequence) {
   });
 }
 
+const GRADE_LABEL = { A: "A 优", B: "B 合格", C: "C 差", U: "未分级" };
+
+function shortId(id) {
+  return id ? id.slice(0, 8) : "-";
+}
+
+function seamCell(tag, text, className) {
+  const node = document.createElement(tag);
+  node.textContent = text;
+  if (className) {
+    node.className = className;
+  }
+  return node;
+}
+
+async function refreshSeams(coil, limit) {
+  const params = new URLSearchParams();
+  if (coil) {
+    params.set("coil", coil);
+  }
+  if (limit) {
+    params.set("limit", limit);
+  }
+  const query = params.toString();
+  const data = await loadJSON("/api/weld/seams" + (query ? "?" + query : ""));
+  const list = document.getElementById("seamList");
+  list.innerHTML = "";
+  (data.seams || []).forEach(function (seam) {
+    const tr = document.createElement("tr");
+    tr.appendChild(seamCell("td", GRADE_LABEL[seam.grade] || seam.grade, "grade grade-" + seam.grade));
+    tr.appendChild(seamCell("td", seam.coil_id || "-"));
+    tr.appendChild(seamCell("td", fmt(seam.position, 1)));
+    tr.appendChild(seamCell("td", seam.voltage ? fmt(seam.voltage, 1) : "-"));
+    tr.appendChild(seamCell("td", seam.current ? fmt(seam.current, 0) : "-"));
+    tr.appendChild(seamCell("td", seam.line_speed ? fmt(seam.line_speed, 2) : "-"));
+    tr.appendChild(seamCell("td", seam.heat_input ? fmt(seam.heat_input, 0) : "-"));
+    tr.appendChild(seamCell("td", seam.grade === "U" ? "-" : (seam.deviation * 100).toFixed(1) + "%"));
+    tr.appendChild(seamCell("td", seam.source === "manual" ? "补录" : "在线"));
+    tr.appendChild(seamCell("td", seam.at ? new Date(seam.at).toLocaleString() : "-"));
+    const repairs = seamCell("td", "…", "repair-pending");
+    tr.appendChild(repairs);
+    const detail = seamCell("td", "");
+    const fill = document.createElement("button");
+    fill.type = "button";
+    fill.textContent = "返修";
+    fill.addEventListener("click", function () {
+      const form = document.querySelector('form[data-form="seam-repair"]');
+      form.id.value = seam.seam_id;
+      form.reason.focus();
+    });
+    detail.appendChild(fill);
+    tr.appendChild(detail);
+    list.appendChild(tr);
+    loadJSON("/api/weld/seam?id=" + seam.seam_id).then(function (d) {
+      const n = (d.repairs || []).length;
+      repairs.textContent = n ? n + " 次" : "-";
+      repairs.className = n ? "repair-count" : "";
+    }).catch(function () {
+      repairs.textContent = "?";
+    });
+  });
+  const repairData = await loadJSON("/api/weld/repairs" + (coil ? "?coil=" + encodeURIComponent(coil) : ""));
+  const repairList = document.getElementById("repairList");
+  repairList.innerHTML = "";
+  (repairData.repairs || []).forEach(function (repair) {
+    const tr = document.createElement("tr");
+    tr.appendChild(seamCell("td", repair.at ? new Date(repair.at).toLocaleString() : "-"));
+    tr.appendChild(seamCell("td", repair.coil_id || "-"));
+    tr.appendChild(seamCell("td", shortId(repair.seam_id)));
+    tr.appendChild(seamCell("td", repair.reason || "-"));
+    tr.appendChild(seamCell("td", repair.operator || "-"));
+    tr.appendChild(seamCell("td", repair.note || "-"));
+    repairList.appendChild(tr);
+  });
+}
+
 async function refresh() {
   try {
     const data = await loadJSON("/api/state");
@@ -163,11 +239,39 @@ const OP_CALLS = {
     const data = await loadJSON("/api/strip/sag");
     window.alert("垂度 " + fmt(data.sag, 2) + " mm");
   },
+  "seam-reload": async () => {
+    const form = document.querySelector('form[data-form="seam-query"]');
+    await refreshSeams(form.coil.value, form.limit.value);
+  },
 };
 
 const FORM_CALLS = {
   "weld-power": (form) => post("/api/weld/power", readForm(form)),
   "weld-splice": (form) => post("/api/weld/splice", readForm(form)),
+  "heat-target": async (form) => {
+    await post("/api/weld/heat-target", readForm(form));
+    const query = document.querySelector('form[data-form="seam-query"]');
+    await refreshSeams(query.coil.value, query.limit.value);
+  },
+  "seam-query": (form) => refreshSeams(form.coil.value, form.limit.value),
+  "seam-repair": async (form) => {
+    await post("/api/weld/repair", readForm(form));
+    form.reset();
+    const query = document.querySelector('form[data-form="seam-query"]');
+    await refreshSeams(query.coil.value, query.limit.value);
+  },
+  "seam-manual": async (form) => {
+    const data = readForm(form);
+    Object.keys(data).forEach(function (key) {
+      if (data[key] === "") {
+        delete data[key];
+      }
+    });
+    await post("/api/weld/seam/manual", data);
+    form.reset();
+    const query = document.querySelector('form[data-form="seam-query"]');
+    await refreshSeams(query.coil.value, query.limit.value);
+  },
   "tension-ramp": (form) => post("/api/tension/ramp", readForm(form)),
   "tension-calibrate": (form) => post("/api/tension/calibrate", readForm(form)),
   "pump-start": (form) => post("/api/pump/start", readForm(form)),
@@ -232,6 +336,12 @@ document.querySelectorAll("button.tab").forEach(function (button) {
     const target = document.getElementById("tab-" + button.dataset.tab);
     if (target) {
       target.classList.remove("hidden");
+    }
+    if (button.dataset.tab === "seams") {
+      const form = document.querySelector('form[data-form="seam-query"]');
+      refreshSeams(form.coil.value, form.limit.value).catch(function (error) {
+        console.error(error);
+      });
     }
   });
 });

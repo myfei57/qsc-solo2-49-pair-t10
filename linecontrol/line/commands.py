@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from ..domain.events import Event
 from ..domain.kinds import EventKind
-from ..domain.records import TensionSnapshot, WeldRecord
+from ..domain.records import (
+    RepairRecord,
+    TensionSnapshot,
+    WeldRecord,
+)
 from ..pickle.dosing import DosePlan
 from ..pump.errors import PumpError, PumpErrorCode
 from ..tension.state import RampPlan
@@ -111,8 +115,48 @@ class CommandOps:
     def persisted_tension(self) -> tuple[TensionSnapshot, bool]:
         return self.tension.persisted_tension()
 
-    def weld_seams(self, limit: int = 0) -> list[WeldRecord]:
-        return self.weld.seam_history(limit)
+    def weld_seams(
+        self, limit: int = 0, coil_id: str = ""
+    ) -> list[WeldRecord]:
+        return self.weld.seam_history(limit, coil_id)
+
+    def weld_seam(self, seam_id: str) -> WeldRecord:
+        return self.weld.seam(seam_id)
+
+    def seam_repairs(self, seam_id: str) -> list[RepairRecord]:
+        return self.weld.repairs_for(seam_id)
+
+    def repair_seam(
+        self,
+        seam_id: str,
+        reason: str = "",
+        operator: str = "",
+        note: str = "",
+        coil_id: str = "",
+    ) -> RepairRecord:
+        return self.weld.register_repair(seam_id, reason, operator, note, coil_id)
+
+    def repair_history(
+        self, limit: int = 0, coil_id: str = ""
+    ) -> list[RepairRecord]:
+        return self.weld.repair_history(limit, coil_id)
+
+    def set_heat_target(self, target: float) -> None:
+        self.weld.set_heat_target(target)
+
+    def register_manual_seam(
+        self,
+        position: float,
+        tension: float,
+        heat_input: float,
+        coil_id: str,
+        voltage: float = 0.0,
+        current: float = 0.0,
+        line_speed: float = 0.0,
+    ) -> WeldRecord:
+        return self.weld.register_manual_seam(
+            position, tension, heat_input, coil_id, voltage, current, line_speed
+        )
 
     def audit_query(self, kind: EventKind | None, limit: int = 0) -> list[Event]:
         if kind is None:

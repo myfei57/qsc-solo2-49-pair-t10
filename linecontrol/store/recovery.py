@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 from ..domain.records import (
     AcidSnapshot,
+    HeatTarget,
     LatchSnapshot,
     PumpSnapshot,
     RinseSnapshot,
@@ -17,6 +18,7 @@ from .filestore import FileStore
 from .keys import (
     KEY_ACID,
     KEY_GAIN,
+    KEY_HEAT_TARGET,
     KEY_HOURS,
     KEY_LATCH,
     KEY_PUMP,
@@ -40,6 +42,7 @@ class Recovery:
     rinse: RinseSnapshot = field(default_factory=RinseSnapshot)
     latch: LatchSnapshot = field(default_factory=LatchSnapshot)
     weld: WeldRecord = field(default_factory=WeldRecord)
+    heat_target: HeatTarget = field(default_factory=HeatTarget)
     run_seconds: float = 0.0
     loaded: tuple[str, ...] = ()
 
@@ -53,6 +56,7 @@ class Recovery:
             "rinse": self.rinse.to_dict(),
             "latch": self.latch.to_dict(),
             "weld": self.weld.to_dict(),
+            "heatTarget": self.heat_target.to_dict(),
             "runSeconds": self.run_seconds,
             "loaded": list(self.loaded),
         }
@@ -88,6 +92,9 @@ def collect(store: FileStore) -> Recovery:
     recovery.weld, ok = load_json(store, KEY_WELD, WeldRecord)
     if ok:
         present.append(KEY_WELD)
+    recovery.heat_target, ok = load_json(store, KEY_HEAT_TARGET, HeatTarget)
+    if ok:
+        present.append(KEY_HEAT_TARGET)
     recovery.run_seconds = load_float(store, KEY_HOURS)
     if store.exists(KEY_HOURS):
         present.append(KEY_HOURS)

@@ -142,3 +142,58 @@ def test_sequence_clear_endpoint(client: FlaskClient) -> None:
     client.post("/api/entry/sample?value=1")
     assert client.post("/api/sequence/clear").status_code == 200
     assert client.get("/api/sequence").get_json()["sequence"]["steps"] == []
+
+
+CYCLE_QS = "coil=C-42&target=90&level=4.5&voltage=24&current=300&speed=1.4"
+
+
+def test_seams_carry_grade_and_coil_and_filter_by_coil(client: FlaskClient) -> None:
+    client.post("/api/weld/heat-target?value=4800")
+    client.post(f"/api/cycle?{CYCLE_QS}")
+    seams = client.get("/api/weld/seams").get_json()["seams"]
+    assert seams
+    assert all(seam["coil_id"] == "C-42" for seam in seams)
+    assert {seam["grade"] for seam in seams} <= {"A", "B", "C", "U"}
+    follow_up = next(seam for seam in seams if seam["heat_input"] > 0)
+    assert follow_up["grade"] == "B"
+    assert follow_up["voltage"] == 24
+    assert follow_up["current"] == 300
+    filtered = client.get("/api/weld/seams?coil=C-42").get_json()["seams"]
+    assert len(filtered) == len(seams)
+    assert client.get("/api/weld/seams?coil=C-other").get_json()["seams"] == []
+
+
+def test_repair_registration_and_history(client: FlaskClient) -> None:
+    client.post("/api/weld/heat-target?value=4800")
+    client.post(f"/api/cycle?{CYCLE_QS}")
+    seam = client.get("/api/weld/seams").get_json()["seams"][0]
+    response = client.post(
+        f"/api/weld/repair?id={seam['seam_id']}&reason=strip-break&operator=zhang"
+    )
+    assert response.status_code == 200
+    repair = response.get_json()["repair"]
+    assert repair["seam_id"] == seam["seam_id"]
+    assert repair["coil_id"] == "C-42"
+    detail = client.get(f"/api/weld/seam?id={seam['seam_id']}").get_json()
+    assert len(detail["repairs"]) == 1
+    repairs = client.get("/api/weld/repairs?coil=C-42").get_json()["repairs"]
+    assert len(repairs) == 1
+    assert client.post("/api/weld/repair?id=ghost").status_code == 409
+    assert client.post("/api/weld/repair").status_code == 400
+
+
+def test_manual_seam_registration(client: FlaskClient) -> None:
+    client.post("/api/weld/heat-target?value=4800")
+    response = client.post(
+        "/api/weld/seam/manual?coil=C-55&pos=12&tension=80&heat=4800"
+        "&voltage=24&current=300&speed=1.5"
+    )
+    seam = response.get_json()["seam"]
+    assert seam["source"] == "manual"
+    assert seam["grade"] == "A"
+    assert seam["coil_id"] == "C-55"
+    assert client.post("/api/weld/seam/manual?pos=1&tension=1&heat=1").status_code == 400
+
+
+def test_heat_target_rejects_non_positive_values(client: FlaskClient) -> None:
+    assert client.post("/api/weld/heat-target?value=0").status_code == 409
